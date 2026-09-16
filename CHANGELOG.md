@@ -21,6 +21,7 @@ Format: version sections are listed newest first.
 - **Decode bench 24×/32× work budget ([#93](https://github.com/MiaAI-Lab/sparkDash/issues/93))** — the post-1.8.6 security cap (131k total tokens) rejected a full concurrency sweep at 2048 max tokens. The cap is 262k so every advertised level fits.
 - **Prefill bench still dying at ~5 min** — Node undici aborts streams with no headers/body after 300s. Long prefills now use an Agent with those idle timeouts disabled; the per-size AbortSignal remains the bound.
 - **Remote SSH session churn** — collectors reuse an authenticated SSH transport instead of creating a full SSH/PAM login for every metric poll. `SSH_CONTROL_PERSIST_SECONDS=0` restores one connection per command if needed.
+- **Shutdown controls ([#90](https://github.com/MiaAI-Lab/sparkDash/issues/90))** — three separate failures on the shutdown path: a local unit in Docker called the host helper from inside the container (no sudo there) instead of entering the host mount namespace; the remote command joined its lines with `;`, so the backgrounded line ended in `&;` and the shell rejected the whole script before running anything; and the authorization probe was `sudo -n true`, which a sudoers rule scoped to the helper does not authorize. The probe is now the helper's own `--check` (see the README contract), with `sudo -n true` kept as a fallback for broader sudo setups. A local unit whose helper or `nsenter` is missing now reports the error instead of logging success.
 
 ---
 
