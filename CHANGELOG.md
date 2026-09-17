@@ -10,6 +10,7 @@ Format: version sections are listed newest first.
 ## [Unreleased]
 
 ### Added
+- **Multi-GPU hosts** — a dedicated GPU host with more than one NVIDIA card now reports every card. `metrics.gpu` stays the aggregate the Overview and alerts already read (hottest card, busiest card, summed power and VRAM) and gains `gpu.gpus[]`, one entry per physical GPU with `index`, `name`, `uuid`, usage, temperature, power, VRAM, throttle state and the processes holding memory on that card. The GPU panel shows a per-card block (usage · temp · power, VRAM bar, throttle chip) when a unit has two or more GPUs; single-GPU units, including every DGX Spark, render exactly as before.
 - **Custom prefill size** — type any token count from 256–300k in the prefill benchmark (plus the preset chips).
 - **q27 LLM backend** — detect signalnine/q27 via `/v1/models` ownership or `q27_*` Prometheus series; report backend-aware decode/prefill rates and inference-health telemetry.
 - **Hide worker nodes** — Settings toggle. Worker-role Sparks drop off Overview cards and the tab bar (the open worker tab stays). Direct URLs and batch Wake / Shutdown / Hermes still include them.
@@ -17,6 +18,7 @@ Format: version sections are listed newest first.
 - **Decode / prefill benches on remote Sparks** — if the remote LLM is not reachable on its LAN IP (loopback-only bind), sparkDash opens an SSH local-forward to `127.0.0.1:<port>` for the job. Bench buttons stay on the LLM card even when the live probe shows no model.
 
 ### Fixed
+- **GPU process VRAM on multi-GPU hosts** — the compute-apps cache was keyed by PID, so a process holding memory on two cards (llama.cpp with a layer split) showed only the last card's share. Entries are keyed by PID + GPU uuid and the process list sums a PID across cards.
 - **Decode bench “Too many benchmark requests”** — start quota was 6/min stacked with a 2/min cooldown, and failed retries still burned the quota. Starts are now 20/min, cooldown is 3s (double-click only), and 400/409 responses do not count.
 - **Decode bench 24×/32× work budget ([#93](https://github.com/MiaAI-Lab/sparkDash/issues/93))** — the post-1.8.6 security cap (131k total tokens) rejected a full concurrency sweep at 2048 max tokens. The cap is 262k so every advertised level fits.
 - **Prefill bench still dying at ~5 min** — Node undici aborts streams with no headers/body after 300s. Long prefills now use an Agent with those idle timeouts disabled; the per-size AbortSignal remains the bound.
