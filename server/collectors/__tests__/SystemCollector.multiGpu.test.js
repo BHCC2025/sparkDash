@@ -95,3 +95,20 @@ test("_buildGpuDevices: a lone GB10 (memory N/A) inherits the aggregate VRAM", (
   assert.equal(gpus.length, 1);
   assert.deepEqual(gpus[0].vram, aggregate);
 });
+
+test("_describeGpus: header label for one, identical, and mixed cards", () => {
+  const c = collector();
+  assert.deepEqual(c._describeGpus("NVIDIA GeForce RTX 5080, 595.84"), {
+    gpuChip: "NVIDIA GeForce RTX 5080",
+    gpuCount: 1,
+    cudaDriver: "595.84",
+  });
+  assert.equal(
+    c._describeGpus("NVIDIA GeForce RTX 5080, 595.84\nNVIDIA GeForce RTX 5080, 595.84").gpuChip,
+    "2× NVIDIA GeForce RTX 5080"
+  );
+  const mixed = c._describeGpus("NVIDIA GeForce RTX 5080, 595.84\nNVIDIA GeForce RTX 5060 Ti, 595.84");
+  assert.equal(mixed.gpuChip, "NVIDIA GeForce RTX 5080 + RTX 5060 Ti");
+  assert.equal(mixed.gpuCount, 2);
+  assert.deepEqual(c._describeGpus(""), { gpuChip: null, gpuCount: 0, cudaDriver: null });
+});

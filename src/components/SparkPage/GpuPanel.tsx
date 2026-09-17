@@ -1,4 +1,4 @@
-import type { CpuMetrics, GpuMetrics } from "../../api/types";
+import type { CpuMetrics, GpuDevice, GpuMetrics } from "../../api/types";
 import { Sparkline } from "../ui/Sparkline";
 import { Panel } from "../ui/Panel";
 import { ActivityIcon } from "../ui/icons";
@@ -59,6 +59,79 @@ function MetricRow({
         <span style={{ color }}>{spark}</span>
         <span className="font-tabular text-sm font-semibold text-text">{value}</span>
       </div>
+    </div>
+  );
+}
+
+function tempColorFor(celsius: number, idle = "var(--color-text)"): string {
+  return celsius > 85 ? "var(--color-danger)" : celsius > 65 ? "var(--color-warning)" : idle;
+}
+
+/** One physical GPU on a multi-card host: name, throttle chip, usage/temp sparklines, VRAM. */
+function GpuDeviceRow({
+  device: d,
+  sparkId,
+  temperatureUnit,
+}: {
+  device: GpuDevice;
+  sparkId: string;
+  temperatureUnit: "celsius" | "fahrenheit";
+}) {
+  const usageHistory = useMetricsHistoryTail(sparkId, `gpu.${d.index}.usage`);
+  const tempHistory = useMetricsHistoryTail(sparkId, `gpu.${d.index}.temp`);
+  const temp = temperatureUnit === "fahrenheit" ? celsiusToFahrenheit(d.temperature) : d.temperature;
+  const tempLabel = temperatureUnit === "fahrenheit" ? `${temp}°F` : `${temp}°C`;
+  const tempColor = tempColorFor(d.temperature, "var(--color-accent)");
+  const chip = throttleChip(d.throttle?.reason);
+  const short = shortGpuName(d.name);
+  return (
+    <div className="space-y-1.5" title={d.throttle?.detail ?? undefined}>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="min-w-0 truncate font-medium text-text" title={d.name ?? undefined}>
+          GPU {d.index}
+          {short ? ` · ${short}` : ""}
+        </span>
+        <span
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${chip.className}`}
+        >
+          {chip.label}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="text-muted">Usage</span>
+        <div className="flex items-center gap-2">
+          <Sparkline data={usageHistory} color="var(--color-accent)" width={84} height={16} />
+          <span className="font-tabular text-text">{d.usage}%</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="text-muted">Temperature</span>
+        <div className="flex items-center gap-2">
+          <Sparkline data={tempHistory} color={tempColor} width={84} height={16} />
+          <span className="font-tabular" style={{ color: tempColor }}>{tempLabel}</span>
+        </div>
+      </div>
+      <div className="flex justify-between gap-2 text-xs">
+        <span className="text-muted">Power</span>
+        <span className="font-tabular text-text">
+          {d.power.draw}W / {d.power.limit}W
+        </span>
+      </div>
+      {d.vram.total > 0 ? (
+        <MetricBar
+          label="VRAM"
+          value={d.vram.used}
+          max={d.vram.total}
+          caption={`${formatMb(d.vram.used).replace(/ (GB|MB)$/, "")} / ${formatMb(d.vram.total)}`}
+        />
+      ) : (
+        <div className="flex justify-between text-xs">
+          <span className="text-muted">VRAM</span>
+          <span className="font-tabular text-text">
+            {d.vram.used > 0 ? `${formatMb(d.vram.used)} used` : "—"}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -199,54 +272,14 @@ export function GpuPanel({ gpu, cpu, sparkId, temperatureUnit, className }: GpuP
           <div className="text-[10px] uppercase tracking-wide text-muted">
             {devices.length} GPUs
           </div>
-          {devices.map((d) => {
-            const dTemp = temperatureUnit === "fahrenheit" ? celsiusToFahrenheit(d.temperature) : d.temperature;
-            const dTempLabel = temperatureUnit === "fahrenheit" ? `${dTemp}°F` : `${dTemp}°C`;
-            const dTempColor =
-              d.temperature > 85
-                ? "var(--color-danger)"
-                : d.temperature > 65
-                  ? "var(--color-warning)"
-                  : "var(--color-text)";
-            const chip = throttleChip(d.throttle?.reason);
-            const short = shortGpuName(d.name);
-            return (
-              <div key={d.uuid ?? d.index} className="space-y-1.5" title={d.throttle?.detail ?? undefined}>
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="min-w-0 truncate font-medium text-text" title={d.name ?? undefined}>
-                    GPU {d.index}
-                    {short ? ` · ${short}` : ""}
-                  </span>
-                  <span
-                    className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${chip.className}`}
-                  >
-                    {chip.label}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted">Usage · Temp · Power</span>
-                  <span className="font-tabular text-text">
-                    {d.usage}% · <span style={{ color: dTempColor }}>{dTempLabel}</span> · {d.power.draw}W / {d.power.limit}W
-                  </span>
-                </div>
-                {d.vram.total > 0 ? (
-                  <MetricBar
-                    label="VRAM"
-                    value={d.vram.used}
-                    max={d.vram.total}
-                    caption={`${formatMb(d.vram.used).replace(/ (GB|MB)$/, "")} / ${formatMb(d.vram.total)}`}
-                  />
-                ) : (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted">VRAM</span>
-                    <span className="font-tabular text-text">
-                      {d.vram.used > 0 ? `${formatMb(d.vram.used)} used` : "—"}
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {devices.map((d) => (
+            <GpuDeviceRow
+              key={d.uuid ?? d.index}
+              device={d}
+              sparkId={sparkId}
+              temperatureUnit={temperatureUnit}
+            />
+          ))}
         </div>
       )}
 

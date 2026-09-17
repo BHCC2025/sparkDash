@@ -168,6 +168,8 @@ export interface HardwareInfo {
   cpuCores: number | null;
   totalMemoryGB: number | null;
   gpuChip: string | null;
+  /** Number of physical GPUs behind `gpuChip` (absent on DGX Spark units). */
+  gpuCount?: number;
   cudaDriver: string | null;
   storageModel: string | null;
 }

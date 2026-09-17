@@ -1636,10 +1636,7 @@ export class SystemCollector {
         coresParsed = Number.isInteger(n) && n > 0 ? n : null;
       }
 
-      const smiLine = smiOut.split("\n").find(Boolean) || "";
-      const smiParts = smiLine.split(",").map((s) => s.trim());
-      const gpuChip = smiParts[0] || null;
-      const cudaDriver = smiParts[1] || null;
+      const { gpuChip, gpuCount, cudaDriver } = this._describeGpus(smiOut);
 
       const modelMatch = cpuinfo.match(/model name\s*:\s*(.+)/i);
       const cpuModel = modelMatch ? modelMatch[1].trim() : null;
@@ -1656,12 +1653,37 @@ export class SystemCollector {
         cpuCores,
         totalMemoryGB,
         gpuChip,
+        gpuCount,
         cudaDriver,
         storageModel: null,
       };
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Header label from `--query-gpu=name,driver_version` (one line per card):
+   * one card → its name; identical cards → "2× NVIDIA GeForce RTX 5080";
+   * mixed cards → "NVIDIA GeForce RTX 5080 + RTX 5060 Ti" (vendor prefix once).
+   */
+  _describeGpus(smiOut) {
+    const rows = String(smiOut ?? "")
+      .split("\n")
+      .map((line) => line.split(",").map((s) => s.trim()))
+      .filter((parts) => parts[0]);
+    if (!rows.length) return { gpuChip: null, gpuCount: 0, cudaDriver: null };
+    const names = rows.map((r) => r[0]);
+    const cudaDriver = rows[0][1] || null;
+    if (names.length === 1) return { gpuChip: names[0], gpuCount: 1, cudaDriver };
+    if (names.every((n) => n === names[0])) {
+      return { gpuChip: `${names.length}× ${names[0]}`, gpuCount: names.length, cudaDriver };
+    }
+    const prefix = /^NVIDIA\s+(GeForce\s+|RTX\s+(?=[A-Z]))?/i;
+    const label = names
+      .map((n, i) => (i === 0 ? n : n.replace(prefix, "")))
+      .join(" + ");
+    return { gpuChip: label, gpuCount: names.length, cudaDriver };
   }
 
   /**
